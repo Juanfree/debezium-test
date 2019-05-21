@@ -1,25 +1,76 @@
 version: '3.6'
 
 networks:
-  database:
+  mysql:
     external: false
     name: database
 
+  kafka-cluster:
+    external: false
+    name: kafka-cluster
+
+  zookeeper:
+    external: false
+    name: zookeeper
+
 services:
   mysql:
-    container_name: mysql
     hostname: mysql
-    build:
-      context: docker
-      dockerfile: mysql/Dockerfile
-      args:
-        - MYSQL_VERSION=5.7
+    image: debezium/example-mysql:0.9
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=debezium
+      - MYSQL_USER=mysqluser
+      - MYSQL_PASSWORD=mysqlpw
+    networks:
+      - mysql
     ports:
       - 3306:3306
+
+  kafla-connect:
+    image: debezium/connect:0.9
+    environment:
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
+      - BOOTSTRAP_SERVERS=kafka:9092
     networks:
-      - database
+      - zookeeper
+      - mysql
+      - kafka-cluster
+    ports:
+      - 8083:8083
+
+  kafka:
+    hostname: kafka
+    image: debezium/kafka:0.9
+    networks:
+      - kafka-cluster
+      - zookeeper
+    environment:
+      - ZOOKEEPER_CONNECT=debezium-zookeeper
+    ports:
+      - 9092:9092
+
+  debezium-zookeeper:
+    hostname: debezium-zookeeper
+    build:
+      context: docker/debezium-zookeeper
+      dockerfile: Dockerfile
+      args:
+        - DEBEZIUM_ZOOKEEPER_VERSION=0.9
+    restart: always
+    environment:
+      SERVER_ID: debezium-zookeeper1
+      SERVER_COUNT: 1
+      LOG_LEVEL: DEBUG
+    ports:
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+    volumes:
+      - ./docker/debezium-zookeeper/rootfs/zookeeper/data:/zookeeper/data
+      - ./docker/debezium-zookeeper/rootfs/zookeeper/txns:/zookeeper/txns
+    networks:
+      - kafka-cluster
+      - zookeeper

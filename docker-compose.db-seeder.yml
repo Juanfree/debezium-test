@@ -1,9 +1,9 @@
 version: '3.6'
 
 networks:
-  database:
+  mysql:
     external: false
-    name: database
+    name: mysql
 
 services:
   db-seeder:
@@ -18,4 +18,4 @@ services:
       - DATABASE_PASSWORD=${DATABASE_PASSWORD}
       - SEED_TYPE=${SEED_TYPE}
     networks:
-      - database
+      - mysql
